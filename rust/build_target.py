@@ -395,7 +395,7 @@ def main():
         call_args.append("--lib")
     if args.type == "bin":
         call_args.extend(["--bin", args.name])
-    retcode, stdout, stderr = run_command(call_args, env, args.gen_dir)
+    retcode, stdout, stderr = run_command(call_args, env, args.crate_root)
     if retcode != 0:
         print(stdout + stderr)
         return retcode
@@ -416,12 +416,12 @@ def main():
         test_args[1] = "test"
         test_args.append("--no-run")
         test_args.append("--message-format=json")
-        retcode, stdout, _ = run_command(test_args, env, args.gen_dir)
+        retcode, stdout, _ = run_command(test_args, env, args.crate_root)
         if retcode != 0:
             # The output is not particularly useful as it is formatted in JSON.
             # Re-run the command with a user-friendly format instead.
             del test_args[-1]
-            _, stdout, stderr = run_command(test_args, env, args.gen_dir)
+            _, stdout, stderr = run_command(test_args, env, args.crate_root)
             print(stdout + stderr)
             return retcode
         generated_test_path = None
