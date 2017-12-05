@@ -263,6 +263,7 @@ def main():
     env["CARGO_TARGET_DIR"] = args.out_dir
     env["RUSTC"] = args.rustc
     env["RUST_BACKTRACE"] = "1"
+    env["FUCHSIA_GEN_ROOT"] = args.root_gen_dir
     env["PATH"] = "%s:%s" % (env["PATH"], args.cmake_dir)
 
     # Generate Cargo.toml.
