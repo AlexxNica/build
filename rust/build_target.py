@@ -58,21 +58,7 @@ def fix_paths(block, default_name, crate_root, new_base):
 # Gathers build metadata from the given dependencies.
 def gather_dependency_infos(root_gen_dir, deps, fail_if_missing=True):
     result = []
-    for dep in deps:
-        path, name = get_target(dep)
-        base_path = os.path.join(root_gen_dir, path, "%s.rust" % name)
-        # Read the information attached to the target.
-        info_path = os.path.join(base_path, "%s.info.toml" % name)
-        if not os.path.exists(info_path):
-            if fail_if_missing:
-                raise Exception("Could not locate dependency info %s at %s" %
-                                (name, info_path))
-            else:
-                continue
-        with open(info_path, "r") as info_file:
-            result.append(pytoml.load(info_file))
     return result
-
 
 # Write some metadata about the target.
 def write_target_info(label, gen_dir, package_name, native_libs,
@@ -268,90 +254,13 @@ def main():
 
     # Generate Cargo.toml.
     original_manifest = os.path.join(args.crate_root, "Cargo.toml")
-    generated_manifest = os.path.join(args.gen_dir, "Cargo.toml")
-    create_base_directory(generated_manifest)
+    target_directory = os.path.join(args.gen_dir, "target")
+    create_base_directory(target_directory)
     package_name = None
     with open(original_manifest, "r") as manifest:
         config = pytoml.load(manifest)
         package_name = config["package"]["name"]
         default_name = package_name.replace("-", "_")
-
-        # Create an explicit bin section with standard defaults if it does not
-        # already exist.
-        if args.type == "bin" and "bin" not in config:
-            config["bin"] = [{
-                "name": package_name,
-                "path": "src/main.rs"
-            }]
-
-        # Update the various paths to the binary sources and locate the desired
-        # binary if applicable.
-        base = None
-        if "bin" in config:
-            for bin in config["bin"]:
-                if "name" in bin:
-                    fix_paths(bin, args.name, args.crate_root, args.gen_dir)
-                    if bin["name"] == args.name:
-                        base = bin
-        if args.type == "bin" and base is None:
-            print("Could not find binary named %s" % args.name)
-            return 1
-
-        # Create an explicit lib section with standard defaults if it does not
-        # already exist.
-        if args.type == "lib" and "lib" not in config:
-            config["lib"] = {
-                "name": default_name,
-                "path": "src/lib.rs"
-            }
-
-        # Update the various paths to the library sources and locate the desired
-        # library if applicable.
-        if "lib" in config:
-            lib = config["lib"]
-            fix_paths(lib, args.name, args.crate_root, args.gen_dir)
-            if args.type == "lib":
-                if "name" not in lib or lib["name"] != args.name:
-                    print("Could not find library %s" % args.name)
-                    return 1
-
-        # Add or edit dependency sections for local deps.
-        def adjust_dependencies(dependencies):
-          for dep in dependencies:
-              if "git" in dependencies[dep]:
-                  print("Detected git dependency on %s" % dep)
-                  print("These are not supported, use explicit versions instead")
-                  return 1
-          for info in dependency_infos:
-              if not info["has_generated_code"]:
-                  # This is a third-party dependency, cargo already knows how to
-                  # find it.
-                  continue
-              artifact_name = info["name"]
-              base_path = info["base_path"]
-              dependencies[artifact_name] = {
-                  "path": os.path.relpath(base_path, args.gen_dir),
-              }
-        if "dependencies" not in config:
-            config["dependencies"] = {}
-        adjust_dependencies(config["dependencies"])
-        # The conditional dependency sections also need to be adjusted.
-        if "target" in config:
-          for key in config["target"]:
-            target = config["target"][key]
-            if "dependencies" in target:
-              adjust_dependencies(target["dependencies"])
-
-
-        # Create replace section with mirrors and local crates.
-        # This intentionally erases any existing replace section which could
-        # interfere with the build.
-        config["replace"] = generate_replace_section(args.root_gen_dir,
-                                                     args.gen_dir)
-
-        # Write the complete manifest.
-        with open(generated_manifest, "w") as generated_config:
-            pytoml.dump(config, generated_config)
 
     # Gather the set of native libraries that will need to be linked.
     native_libs = extract_native_libs(dependency_infos)
